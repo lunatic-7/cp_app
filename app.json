@@ -1,13 +1,41 @@
 {
   "expo": {
+    "name": "CP",
+    "slug": "cp",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "scheme": "acme",
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lunatic07.CP"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.lunatic07.CP"
     },
     "plugins": [
       "expo-router"
     ],
-    "name": "cp",
-    "slug": "cp"
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "93428309-a050-4019-8a84-7ae8fe3e60c5"
+      }
+    }
   }
 }
