@@ -7,33 +7,41 @@ import { useState, useEffect } from 'react'
 
 import Welcome from "./Welcome";
 import Contests from "./Contests";
+import SubmissionsScreen from "./SubmissionsScreen";
 import ScreenHeaderBtn from "../components/ScreenHeaderBtn.jsx";
 import SearchComponent from "../components/SearchComponent.jsx";
+import FrontScreen from "./FrontScreen.jsx";
 
 const Home = () => {
 
   const [userInfo, setUserInfo] = useState(null);
-  const [defaultHandle, setDefaultHandle] = useState('wasif1607');
+  const [defaultHandle, setDefaultHandle] = useState("bokka777");
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     fetchData(defaultHandle);
   }, [defaultHandle]);
 
   const fetchData = async (handle) => {
-    try {
-      const response = await axios.get(
-        `https://codeforces.com/api/user.info?handles=${handle}&checkHistoricHandles=false`
-      );
+    if (defaultHandle !== "bokka777") {
+      try {
+        const response = await axios.get(
+          `https://codeforces.com/api/user.info?handles=${handle}&checkHistoricHandles=false`
+        );
 
-      if (response.data.status === 'OK') {
-        setUserInfo(response.data.result[0]);
-      } else {
-        console.error('Failed to fetch user info');
+        if (response.data.status === 'OK') {
+          setUserInfo(response.data.result[0]);
+          setIsLoading(false);
+        } else {
+          console.error('Failed to fetch user info');
+          setUserInfo(null);
+          setIsLoading(false)
+        }
+      } catch (error) {
+        console.error('Error fetching user info', error);
         setUserInfo(null);
+        setIsLoading(false)
       }
-    } catch (error) {
-      console.error('Error fetching user info', error);
-      setUserInfo(null);
     }
   };
 
@@ -52,7 +60,7 @@ const Home = () => {
         return 'text-cyan-600 font-bold text-lg';
       case 'expert':
         return 'text-blue-500 font-bold text-lg';
-      case 'candiate master':
+      case 'candidate master':
         return 'text-violet-500 font-bold text-lg';
       case 'master':
         return 'text-orange-500 font-bold text-lg';
@@ -73,7 +81,7 @@ const Home = () => {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
       <Stack.Screen
         options={{
-          headerStyle: { backgroundColor: "#f5f5f5" },
+          headerStyle: { backgroundColor: "#E5F2F0" },
           headerShadowVisible: false,
           headerLeft: () => (
             userInfo && <Text className={getRankColor()}>{userInfo.rank}</Text>
@@ -87,10 +95,15 @@ const Home = () => {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         <View>
-
-          <Welcome userInfo={userInfo} getRankColor={getRankColor} />
-          <SearchComponent onSearch={handleSearch} setDefaultHandle={setDefaultHandle} />
-          <Contests handle={defaultHandle}/>
+          {defaultHandle !== "bokka777" ? (
+            <View>
+              <Welcome userInfo={userInfo} getRankColor={getRankColor} isLoading={isLoading} />
+              <SearchComponent onSearch={handleSearch} setDefaultHandle={setDefaultHandle} />
+              <Contests handle={defaultHandle} />
+            </View>
+          ) : (
+            <FrontScreen setDefaultHandle={setDefaultHandle} />
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

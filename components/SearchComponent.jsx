@@ -14,7 +14,7 @@ const SearchComponent = ({ onSearch }) => {
 
     <View className="mx-2">
       <TextInput
-        placeholder="Enter Codeforces handle"
+        placeholder="Enter a valid Codeforces handle"
         value={handle}
         onChangeText={(text) => setHandle(text)}
         autoCapitalize='none'

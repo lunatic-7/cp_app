@@ -1,8 +1,9 @@
-import { View, Text, Image, TouchableOpacity, Linking } from 'react-native'
+import { View, Text, Image, TouchableOpacity, Linking, ActivityIndicator } from 'react-native'
 import { icons } from '../constants';
+import { Stack, useRouter } from 'expo-router';
 
-const Welcome = ({ userInfo, getRankColor }) => {
-
+const Welcome = ({ userInfo, getRankColor, isLoading }) => {
+  const router = useRouter();
   const formatTime = (timeSeconds) => {
     const now = Math.floor(Date.now() / 1000);
     const elapsedSeconds = now - timeSeconds;
@@ -32,6 +33,7 @@ const Welcome = ({ userInfo, getRankColor }) => {
     Linking.openURL(googleUrl);
   };
 
+
   return (
     <View className='flex-1 bg-white my-10'>
       {userInfo ? (
@@ -46,11 +48,14 @@ const Welcome = ({ userInfo, getRankColor }) => {
             <Text className="text-md text-gray-500">Rating: <Text className={`${getRankColor()}`}>{userInfo.rating}</Text></Text>
             {userInfo.handle === "wasif1607" && (
               <TouchableOpacity onPress={openLink} className="my-2">
-                <Image 
+                <Image
                   source={icons.github}
                 />
               </TouchableOpacity>
             )}
+            <TouchableOpacity onPress={() => router.push({ pathname: "SubmissionsScreen", params: { handle: userInfo.handle } })}>
+              <Text className="text-cyan-500 font-semibold py-2">Submissions ✍🏻</Text>
+            </TouchableOpacity>
           </View>
           {/* Right box */}
           <View className="w-[55%] flex flex-col justify-center gap-1">
@@ -66,8 +71,13 @@ const Welcome = ({ userInfo, getRankColor }) => {
             <Text className="text-md text-gray-500">Registered: <Text className="text-gray-700">{formatTime(userInfo.registrationTimeSeconds)}</Text></Text>
           </View>
         </View>
+      ) : isLoading ? (
+        <ActivityIndicator size="large" />
       ) : (
-        <Text className="text-red-500 text-center text-2xl">No such user 😢</Text>
+        <View>
+          <Image source={icons.bhai_kya} resizeMode="contain" className="w-80 ml-10"/>
+          <Text className="text-gray-500 text-center text-sm">- Enter a valid CF Handle</Text>
+        </View>
       )}
 
     </View>
