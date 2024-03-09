@@ -4,6 +4,7 @@ import search from "../assets/icons/search.png"
 import deleteIcon from "../assets/icons/delete.png"
 import cp_wall from "../assets/icons/cp_wall.jpg"
 import bhai_kya from "../assets/icons/bhai_kya.png"
+import do_it from "../assets/icons/do_it.gif"
 
 export default {
     cf_icon,
@@ -12,4 +13,5 @@ export default {
     deleteIcon,
     cp_wall,
     bhai_kya,
+    do_it,
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, Linking } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { icons } from '../constants';
@@ -67,6 +67,11 @@ const FrontScreen = ({ setDefaultHandle }) => {
         }
     };
 
+    const openLink = () => {
+        const googleUrl = 'https://github.com/lunatic-7/cp_app';
+        Linking.openURL(googleUrl);
+    };
+
     return (
         <View className="flex-1 p-4 justify-center">
             {/* <Text className="text-2xl font-bold mb-3 text-center">Enter Codeforces Handle</Text> */}
@@ -101,6 +106,22 @@ const FrontScreen = ({ setDefaultHandle }) => {
                         </TouchableOpacity>
                     }
                 </View>
+            </View>
+
+            <View className="flex-1 items-center mt-[63%]">
+                <View className="flex flex-row justify-center items-center gap-2">
+                    <Text className="text-center text-slate-500">Developed by <Text className="text-slate-700">Wasif</Text></Text>
+                    <TouchableOpacity onPress={openLink}>
+                        <Image
+                            source={icons.github}
+                            className="w-5 h-5"
+                            resizeMode='cover'
+                        />
+                    </TouchableOpacity>
+                </View>
+                <Text className="text-center text-[#657786]">Powered by <Text className="font-bold">Codeforces API</Text></Text>
+                <Text className="text-center text-[#657786]">Version 1.0.2</Text>
+                <Text className="text-center text-[#657786]">&copy; 2024 All rights reserved</Text>
             </View>
         </View>
     );
