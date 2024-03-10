@@ -61,7 +61,7 @@ const Analytics = () => {
             .filter(submission => {
                 const submissionDate = moment.unix(submission.creationTimeSeconds);
                 const today = moment().endOf('day');
-                const sevenDaysAgo = moment().subtract(7, 'days').startOf('day');
+                const sevenDaysAgo = moment().subtract(6, 'days').startOf('day');
                 return submissionDate.isBetween(sevenDaysAgo, today, 'day', '[]'); // '[]' includes both endpoints
             })
             .map(submission => ({
@@ -248,6 +248,9 @@ const Analytics = () => {
                     <ActivityIndicator size="large" />
                 </View>
             )}
+
+            <Text className="text-gray-500 text-center mt-[15%]">These are last 7 days ✔ submissions and accuracy analysis for the user: {sub_handle}</Text>
+
         </View>
     )
 }
