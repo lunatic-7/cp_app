@@ -13,7 +13,7 @@
     "scheme": "acme",
     "web": {
       "bundler": "metro",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icon.png"
     },
     "ios": {
       "supportsTablet": true,

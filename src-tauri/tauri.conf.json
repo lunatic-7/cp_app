@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CP Roadmap",
+  "version": "1.0.2",
+  "identifier": "com.lunatic07.cp",
+  "build": {
+    "beforeDevCommand": "npm run web:desktop",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run desktop:web",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "CP Roadmap",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 380,
+        "minHeight": 640,
+        "center": true,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "appimage"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.png"],
+    "category": "Education",
+    "shortDescription": "NeetCode and Codeforces progress dashboard",
+    "longDescription": "An offline-first NeetCode 250 roadmap with notes and progress tracking, plus an online Codeforces dashboard."
+  }
+}

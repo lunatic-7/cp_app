@@ -6,7 +6,11 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "web:desktop": "expo start --web --port 1420",
+    "desktop:web": "expo export --platform web",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -30,6 +34,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "@tauri-apps/cli": "^2.11.4",
     "autoprefixer": "^10.4.18",
     "babel-preset-expo": "~54.0.10",
     "postcss": "^8.4.35",
