@@ -1,51 +1,36 @@
-import React from 'react';
-import { View, Text } from 'react-native';
+import { StyleSheet, Text, View } from "react-native";
+import { useTheme } from "../contexts/ThemeContext";
 
-const ContestItem = ({ item }) => {
-
-    const rateChange = (newRating, oldRating) => {
-        if (newRating - oldRating > 0) {
-            return <Text className="text-green-500">   (+{newRating - oldRating})</Text>;
-        } else if (newRating - oldRating < 0) {
-            return <Text className="text-red-500">   ({newRating - oldRating})</Text>;
-        } else {
-            return <Text>   ({newRating - oldRating})</Text>;
-        }
-    }
-
-    const formatTime = (timeSeconds) => {
-        const now = Math.floor(Date.now() / 1000);
-        const elapsedSeconds = now - timeSeconds;
-
-        if (elapsedSeconds < 60) {
-            return 'online';
-        } else if (elapsedSeconds < 3600) {
-            const mins = Math.floor(elapsedSeconds / 60);
-            return `${mins} ${mins === 1 ? 'min' : 'mins'} ago`;
-        } else if (elapsedSeconds < 86400) {
-            const hours = Math.floor(elapsedSeconds / 3600);
-            return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
-        } else if (elapsedSeconds < 2592000) {
-            const days = Math.floor(elapsedSeconds / 86400);
-            return `${days} ${days === 1 ? 'day' : 'days'} ago`;
-        } else if (elapsedSeconds < 31536000) {
-            const months = Math.floor(elapsedSeconds / 2592000);
-            return `${months} ${months === 1 ? 'month' : 'months'} ago`;
-        } else {
-            const years = Math.floor(elapsedSeconds / 31536000);
-            return `${years} ${years === 1 ? 'year' : 'years'} ago`;
-        }
-    };
-
-    return (
-        <View className="mb-5 border-2 border-gray-200 p-3 rounded-xl">
-            <Text className="text-lg font-bold mb-3">{item.contestName}</Text>
-            <Text className="text-gray-500">Contest ID: <Text className="text-gray-700">{item.contestId}</Text></Text>
-            <Text className="text-gray-500">When: <Text className="text-gray-700">{formatTime(item.ratingUpdateTimeSeconds)}</Text></Text>
-            <Text className="text-gray-500">Rank: <Text className="text-gray-700">{item.rank}</Text></Text>
-            <Text className="text-gray-500">Rating Change: <Text className="text-gray-700">{item.oldRating} → {item.newRating} {rateChange(item.newRating, item.oldRating)}</Text></Text>
+export default function ContestItem({ item }) {
+  const { colors } = useTheme();
+  const change = item.newRating - item.oldRating;
+  return (
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={styles.topRow}>
+        <Text numberOfLines={2} style={[styles.name, { color: colors.text }]}>{item.contestName}</Text>
+        <View style={[styles.change, { backgroundColor: change >= 0 ? `${colors.success}18` : `${colors.danger}18` }]}>
+          <Text style={{ color: change >= 0 ? colors.success : colors.danger, fontWeight: "850" }}>{change >= 0 ? "+" : ""}{change}</Text>
         </View>
-    );
-};
+      </View>
+      <Text style={[styles.meta, { color: colors.muted }]}>{relativeTime(item.ratingUpdateTimeSeconds)} · Rank #{item.rank}</Text>
+      <View style={[styles.ratingRow, { borderTopColor: colors.border }]}>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>Rating</Text>
+        <Text style={{ color: colors.text, fontWeight: "750" }}>{item.oldRating}  →  {item.newRating}</Text>
+      </View>
+    </View>
+  );
+}
 
-export default ContestItem;
+function relativeTime(seconds) {
+  const elapsed = Math.max(0, Math.floor(Date.now() / 1000) - seconds);
+  const units = [[31536000, "year"], [2592000, "month"], [86400, "day"], [3600, "hour"], [60, "min"]];
+  for (const [size, label] of units) if (elapsed >= size) { const value = Math.floor(elapsed / size); return `${value} ${label}${value === 1 ? "" : "s"} ago`; }
+  return "just now";
+}
+
+const styles = StyleSheet.create({
+  card: { borderWidth: 1, borderRadius: 19, padding: 16, gap: 10, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 7, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  topRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 }, name: { flex: 1, fontSize: 16, lineHeight: 21, fontWeight: "800" },
+  change: { minWidth: 52, borderRadius: 11, paddingHorizontal: 9, paddingVertical: 6, alignItems: "center" }, meta: { fontSize: 12 },
+  ratingRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, flexDirection: "row", justifyContent: "space-between" },
+});

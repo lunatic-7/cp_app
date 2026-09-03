@@ -1,258 +1,34 @@
-import { View, Text, ActivityIndicator } from 'react-native'
-import React, { useEffect, useState } from 'react'
-import { Stack, useLocalSearchParams } from 'expo-router';
-import axios from 'axios';
-import moment from 'moment';
-import {
-    LineChart,
-    ProgressChart,
-} from "react-native-chart-kit";
-import { Dimensions } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import axios from "axios";
+import ThemeToggle from "../components/ThemeToggle";
+import { useTheme } from "../contexts/ThemeContext";
 
-const screenWidth = Dimensions.get("window").width;
+export default function Analytics() {
+  const { sub_handle: rawHandle } = useLocalSearchParams();
+  const handle = Array.isArray(rawHandle) ? rawHandle[0] : rawHandle || "wasif1607";
+  const router = useRouter(); const { colors } = useTheme(); const { width } = useWindowDimensions();
+  const [submissions, setSubmissions] = useState([]); const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [error, setError] = useState(null);
+  const fetchData = useCallback(async (refresh = false) => { refresh ? setRefreshing(true) : setLoading(true); setError(null); try { const response = await axios.get(`https://codeforces.com/api/user.status?handle=${encodeURIComponent(handle)}&from=1&count=350`); if (response.data.status !== "OK") throw new Error(); setSubmissions(response.data.result); } catch { setError("Analytics are unavailable right now. Check your connection and try again."); } finally { setLoading(false); setRefreshing(false); } }, [handle]);
+  useEffect(() => { fetchData(); }, [fetchData]);
+  const analytics = useMemo(() => calculateAnalytics(submissions), [submissions]);
 
-const Analytics = () => {
-
-    const [submissions, setSubmissions] = useState(null);
-    const [avgSub, setAvgSub] = useState(-1)
-    const [maxSub, setMaxSub] = useState(-1)
-    const [minSub, setMinSub] = useState(-1)
-    const [bbarData, setBbarData] = useState(null)
-    const [pgData, setPgData] = useState(null)
-    const [isLoading, setIsLoading] = useState(true)
-
-    const params = useLocalSearchParams();
-    const { sub_handle } = params;
-
-
-    useEffect(() => {
-        const fetchSubmissions = async () => {
-            try {
-                const response = await axios.get(
-                    `https://codeforces.com/api/user.status?handle=${sub_handle}&from=1&count=350`
-                );
-
-                if (response.data.status === 'OK') {
-                    setSubmissions(response.data.result);
-                    setIsLoading(false);
-                } else {
-                    console.error('Failed to fetch submissions');
-                }
-            } catch (error) {
-                console.error('Error fetching submissions', error);
-            }
-        };
-
-        fetchSubmissions();
-    }, [sub_handle]);
-
-    // Function to format a timestamp to a specific date
-    const formatDate = (timestamp) => {
-        const date = moment.unix(timestamp);
-        return date.format('D MMM');
-    };
-
-    // Step 1: Extract relevant information and filter submissions with "OK" verdict
-    if (submissions && !bbarData) {
-
-        // Step 1: Extract relevant information and filter submissions with "OK" verdict
-        const filteredSubmissions = submissions
-            .filter(submission => submission.verdict === 'OK')
-            .filter(submission => {
-                const submissionDate = moment.unix(submission.creationTimeSeconds);
-                const today = moment().endOf('day');
-                const sevenDaysAgo = moment().subtract(6, 'days').startOf('day');
-                return submissionDate.isBetween(sevenDaysAgo, today, 'day', '[]'); // '[]' includes both endpoints
-            })
-            .map(submission => ({
-                date: formatDate(submission.creationTimeSeconds),
-                id: submission.id,
-            }));
-
-        // Step 2: Group submissions by date
-        const groupedSubmissions = {};
-        filteredSubmissions.forEach(submission => {
-            if (!groupedSubmissions[submission.date]) {
-                groupedSubmissions[submission.date] = [];
-            }
-            groupedSubmissions[submission.date].push(submission);
-        });
-
-        // Step 3: Create an array of all dates within the range
-        const allDates = [];
-        for (let i = 6; i >= 0; i--) {
-            const date = moment().subtract(i, 'days').format('D MMM');
-            allDates.push(date);
-        }
-
-        // Step 4: Count the number of submissions with "OK" verdict for each date
-        const barData = allDates.map(date => groupedSubmissions[date]?.length || 0);
-
-        // Step 5: Calculate the average number of "OK" verdict submissions
-        const totalSubmissions = filteredSubmissions.length;
-        const averageSubmissions = (totalSubmissions / 7).toFixed(2);
-        const minSubmissions = Math.min(...barData);
-        const maxSubmissions = Math.max(...barData);
-
-        setAvgSub(averageSubmissions)
-        setMinSub(minSubmissions)
-        setMaxSub(maxSubmissions)
-
-        // Step 5: Reverse the barData array to start from today
-        const reversedBarData = barData.reverse();
-        const reversedAllDates = allDates.reverse();
-
-        // Step 6: Create the desired format for your bar graph
-        const data = {
-            labels: reversedAllDates,
-            datasets: [
-                {
-                    data: reversedBarData,
-                }
-            ],
-            // legend: ["Accepted submissions (7 Days)"] // optional
-        };
-
-        setBbarData(data);
-    }
-
-    if (submissions && !pgData) {
-        // Function to get submissions for a specific verdict and within the last 7 days
-        const getSubmissionsForVerdictAndLast7Days = (verdict, submissions) => {
-            const today = moment().endOf('day');
-            const sevenDaysAgo = moment().subtract(7, 'days').startOf('day');
-
-            return submissions.filter(submission => (
-                submission.verdict === verdict &&
-                moment.unix(submission.creationTimeSeconds).isBetween(sevenDaysAgo, today, 'day', '[]')
-            ));
-        };
-
-        // Verdicts and their abbreviated labels and colors
-        const verdicts = [
-            { full: "WRONG_ANSWER", abbreviated: "WA", color: "#F44336" }, // Red
-            { full: "TIME_LIMIT_EXCEEDED", abbreviated: "TLE", color: "#FFC107" }, // Yellow
-            { full: "OK", abbreviated: "OK", color: "#4CAF50" }, // Green
-        ];
-
-        // Get submissions for each verdict within the last 7 days
-        const submissionsForVerdicts = verdicts.map(verdict => ({
-            verdict: verdict.full,
-            abbreviatedVerdict: verdict.abbreviated,
-            color: verdict.color,
-            count: getSubmissionsForVerdictAndLast7Days(verdict.full, submissions).length,
-        }));
-
-        // Calculate percentages
-        const totalSubmissions = submissionsForVerdicts.reduce((total, submission) => total + submission.count, 0);
-        const percentages = submissionsForVerdicts.map(submission => ({
-            abbreviatedVerdict: submission.abbreviatedVerdict,
-            percentage: totalSubmissions === 0 ? 0 : (submission.count / totalSubmissions),
-            color: submission.color,
-        }));
-
-        // Prepare the data for the progress chart
-        const data = {
-            labels: percentages.map(submission => submission.abbreviatedVerdict),
-            data: percentages.map(submission => submission.percentage),
-            color: percentages.map(submission => submission.color),
-        };
-
-        setPgData(data);
-    }
-
-    const chartConfig = {
-        // backgroundGradientFrom: "#000",
-        backgroundGradientFromOpacity: 0,
-        // backgroundGradientTo: "#222",
-        backgroundGradientToOpacity: 0.1,
-        color: (opacity = 1) => `rgba(34, 100, 34, ${opacity})`,
-        labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-        propsForDots: {
-            r: '5',
-            strokeWidth: '2',
-            stroke: '#AFE1AF',
-        },
-        strokeWidth: 2, // optional, default 3
-        decimalPlaces: 2, // optional, defaults to 2dp
-        useShadowColorFromDataset: false // optional
-    };
-
-    const chartConfig2 = {
-        backgroundGradientFromOpacity: 0,
-        backgroundGradientToOpacity: 0,
-        color: (opacity = 1) => `rgba(10, 50, 23, ${opacity})`,
-        labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-        propsForDots: {
-            r: '5',
-            strokeWidth: '2',
-            stroke: '#AFE1AF',
-        },
-        strokeWidth: 2, // optional, default 3
-        decimalPlaces: 0, // optional, defaults to 2dp
-        useShadowColorFromDataset: false // optional
-    };
-
-    // each value represents a goal ring in Progress chart
-    const ringData = {
-        labels: ["Swim", "Bike", "Run"], // optional
-        data: [0.4, 0.6, 0.8]
-    };
-
-    return (
-        <View className="flex-1 p-3">
-            <Stack.Screen
-                options={{
-                    headerStyle: { backgroundColor: "#E5F2F0" },
-                    headerShadowVisible: false,
-                    headerLeft: () => (
-                        <Text className="font-semibold pt-2 text-xl text-gray-700">7D Analysis 🧐</Text>
-                    ),
-                    headerTitle: "",
-                }}
-            />
-
-            {!isLoading ? (
-                <View>
-                    <Text className="text-xl font-semibold text-gray-700 my-5 mt-7">✅ Submissions Analysis</Text>
-                    <View className="flex flex-row justify-between">
-                        <Text>Min: <Text className="text-lg font-bold text-red-500">{minSub}</Text></Text>
-                        <Text>Avg: <Text className="text-lg font-bold text-orange-500">{avgSub}</Text></Text>
-                        <Text>Max: <Text className="text-lg font-bold text-green-500">{maxSub}</Text></Text>
-                    </View>
-                    <LineChart
-                        data={bbarData}
-                        width={screenWidth}
-                        height={220}
-                        chartConfig={chartConfig}
-                        fromZero={true}
-                        bezier
-                        style={{
-                            marginVertical: 8,
-                            marginRight: 21,
-                        }}
-                    />
-                    <Text className="text-xl font-semibold text-gray-700 my-5 mt-7">🏹 Accuracy Analysis</Text>
-                    <ProgressChart
-                        data={pgData}
-                        width={screenWidth}
-                        height={240}
-                        strokeWidth={18}
-                        radius={36}
-                        chartConfig={chartConfig2}
-                        hideLegend={false}
-                    />
-                </View>
-            ) : (
-                <View className="flex-1 justify-center items-center">
-                    <ActivityIndicator size="large" />
-                </View>
-            )}
-
-            <Text className="text-gray-500 text-center mt-[15%]">These are last 7 days ✔ submissions and accuracy analysis for the user: {sub_handle}</Text>
-
-        </View>
-    )
+  return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+    <View style={[styles.nav, { borderBottomColor: colors.border }]}><Pressable onPress={() => router.back()} style={[styles.back, { backgroundColor: colors.surfaceAlt }]}><Text style={[styles.backText, { color: colors.text }]}>‹</Text></Pressable><Text style={[styles.navTitle, { color: colors.text }]}>Analytics</Text><ThemeToggle /></View>
+    {loading ? <ActivityIndicator size="large" color={colors.primary} style={{ flex: 1 }} /> : error ? <View style={styles.center}><Text style={styles.errorIcon}>!</Text><Text style={[styles.heading, { color: colors.text }]}>Couldn’t load analytics</Text><Text style={[styles.description, { color: colors.muted }]}>{error}</Text><Pressable onPress={() => fetchData()} style={[styles.retry, { backgroundColor: colors.primary }]}><Text style={{ color: "#fff", fontWeight: "800" }}>Try again</Text></Pressable></View> :
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchData(true)} colors={[colors.primary]} tintColor={colors.primary} />}>
+      <Text style={[styles.eyebrow, { color: colors.primary }]}>LAST 7 DAYS · @{handle}</Text><Text style={[styles.title, { color: colors.text }]}>Your performance</Text><Text style={[styles.description, { color: colors.muted }]}>A simple view of consistency and submission accuracy.</Text>
+      <View style={styles.summary}><Metric label="Accepted" value={analytics.accepted} color={colors.success} colors={colors} /><Metric label="Daily avg" value={analytics.average.toFixed(1)} color={colors.primary} colors={colors} /><Metric label="Best day" value={analytics.maximum} color="#d97706" colors={colors} /></View>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={[styles.heading, { color: colors.text }]}>Accepted by day</Text><Text style={[styles.caption, { color: colors.muted }]}>Consistency over the past week</Text><View style={styles.chart}>{analytics.days.map((day) => <View key={day.label} style={styles.barColumn}><Text style={[styles.barValue, { color: colors.text }]}>{day.count}</Text><View style={[styles.barTrack, { backgroundColor: colors.surfaceAlt, height: 130 }]}><View style={{ width: "100%", minHeight: day.count ? 8 : 0, height: `${day.count / Math.max(analytics.maximum, 1) * 100}%`, borderRadius: 8, backgroundColor: colors.primary }} /></View><Text style={[styles.barLabel, { color: colors.muted }]}>{day.label}</Text></View>)}</View></View>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={styles.accuracyTop}><View><Text style={[styles.heading, { color: colors.text }]}>Accuracy</Text><Text style={[styles.caption, { color: colors.muted }]}>Decisive verdicts this week</Text></View><Text style={[styles.accuracy, { color: colors.primary }]}>{Math.round(analytics.accuracy * 100)}%</Text></View><View style={[styles.accuracyTrack, { backgroundColor: colors.surfaceAlt }]}><View style={{ height: "100%", width: `${analytics.accuracy * 100}%`, backgroundColor: colors.primary, borderRadius: 6 }} /></View><View style={styles.verdicts}><Verdict label="Accepted" value={analytics.verdicts.OK} color={colors.success} /><Verdict label="Wrong answer" value={analytics.verdicts.WRONG_ANSWER} color={colors.danger} /><Verdict label="Time limit" value={analytics.verdicts.TIME_LIMIT_EXCEEDED} color="#d97706" /></View></View>
+    </ScrollView>}
+  </SafeAreaView>;
 }
 
-export default Analytics
+function calculateAnalytics(items) { const now = new Date(); const days = Array.from({ length: 7 }, (_, i) => { const date = new Date(now); date.setDate(now.getDate() - (6 - i)); return { date: date.toDateString(), label: date.toLocaleDateString(undefined, { weekday: "short" }), count: 0 }; }); const verdicts = { OK: 0, WRONG_ANSWER: 0, TIME_LIMIT_EXCEEDED: 0 }; items.forEach((item) => { const day = days.find((entry) => entry.date === new Date(item.creationTimeSeconds * 1000).toDateString()); if (!day) return; if (item.verdict === "OK") day.count += 1; if (Object.hasOwn(verdicts, item.verdict)) verdicts[item.verdict] += 1; }); const accepted = days.reduce((sum, day) => sum + day.count, 0); const decisive = Object.values(verdicts).reduce((a, b) => a + b, 0); return { days, verdicts, accepted, average: accepted / 7, maximum: Math.max(...days.map((day) => day.count)), accuracy: decisive ? verdicts.OK / decisive : 0 }; }
+function Metric({ label, value, color, colors }) { return <View style={[styles.metric, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={{ color, fontSize: 23, fontWeight: "850" }}>{value}</Text><Text style={{ color: colors.muted, fontSize: 10 }}>{label}</Text></View>; }
+function Verdict({ label, value = 0, color }) { return <View style={styles.verdict}><View style={[styles.dot, { backgroundColor: color }]} /><Text style={{ flex: 1, color, fontWeight: "700" }}>{label}</Text><Text style={{ color, fontWeight: "850" }}>{value}</Text></View>; }
+
+const styles = StyleSheet.create({ safe: { flex: 1 }, nav: { minHeight: 62, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: StyleSheet.hairlineWidth }, back: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" }, backText: { fontSize: 35, lineHeight: 37 }, navTitle: { flex: 1, textAlign: "center", fontSize: 16, fontWeight: "800" }, content: { padding: 16, paddingBottom: 45, gap: 14 }, eyebrow: { fontSize: 10, fontWeight: "850", letterSpacing: 1.4, marginTop: 7 }, title: { fontSize: 29, fontWeight: "850", letterSpacing: -0.7 }, description: { fontSize: 13, lineHeight: 20 }, summary: { flexDirection: "row", gap: 8 }, metric: { flex: 1, minHeight: 79, borderWidth: 1, borderRadius: 17, alignItems: "center", justifyContent: "center", gap: 3 }, card: { borderWidth: 1, borderRadius: 21, padding: 17 }, heading: { fontSize: 18, fontWeight: "850" }, caption: { fontSize: 11, marginTop: 3 }, chart: { height: 182, flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 16 }, barColumn: { flex: 1, height: "100%", alignItems: "center", justifyContent: "flex-end" }, barValue: { fontSize: 10, fontWeight: "750", marginBottom: 4 }, barTrack: { width: "78%", borderRadius: 8, overflow: "hidden", justifyContent: "flex-end" }, barLabel: { fontSize: 9, marginTop: 6 }, accuracyTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, accuracy: { fontSize: 28, fontWeight: "850" }, accuracyTrack: { height: 9, borderRadius: 6, overflow: "hidden", marginVertical: 18 }, verdicts: { gap: 11 }, verdict: { flexDirection: "row", alignItems: "center", gap: 9 }, dot: { width: 8, height: 8, borderRadius: 4 }, center: { flex: 1, padding: 30, alignItems: "center", justifyContent: "center" }, errorIcon: { color: "#fff", backgroundColor: "#dc2626", width: 48, height: 48, borderRadius: 16, textAlign: "center", textAlignVertical: "center", fontSize: 28, fontWeight: "800", overflow: "hidden", marginBottom: 14 }, retry: { borderRadius: 13, paddingHorizontal: 20, paddingVertical: 12, marginTop: 16 } });

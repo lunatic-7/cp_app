@@ -1,31 +1,26 @@
-// SearchComponent.js
-import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, Text, Image } from 'react-native';
-import { icons } from '../constants';
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useState } from "react";
+import { useTheme } from "../contexts/ThemeContext";
 
-const SearchComponent = ({ onSearch }) => {
-  const [handle, setHandle] = useState('');
-
-  const handleSearch = () => {
-    onSearch(handle);
-  };
-
+export default function SearchComponent({ onSearch }) {
+  const { colors } = useTheme();
+  const [handle, setHandle] = useState("");
+  const submit = () => { const value = handle.trim(); if (value) { onSearch(value); setHandle(""); } };
   return (
-
-    <View className="mx-2">
+    <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <TextInput
-        placeholder="Enter a valid Codeforces handle"
-        value={handle}
-        onChangeText={(text) => setHandle(text)}
-        autoCapitalize='none'
-        autoCorrect={false}
-        className="border-b-2 border-gray-300 p-2 rounded-md relative"
+        placeholder="Switch Codeforces handle" placeholderTextColor={colors.muted} value={handle} onChangeText={setHandle}
+        onSubmitEditing={submit} returnKeyType="search" autoCapitalize="none" autoCorrect={false}
+        style={[styles.input, { color: colors.text }]}
       />
-      <TouchableOpacity onPress={handleSearch} className="absolute right-1 top-2">
-        <Image source={icons.search}/>
-      </TouchableOpacity>
+      <Pressable onPress={submit} style={({ pressed }) => [styles.button, { backgroundColor: colors.primary, opacity: pressed ? 0.75 : 1 }]}>
+        <Text style={styles.buttonText}>Search</Text>
+      </Pressable>
     </View>
   );
-};
+}
 
-export default SearchComponent;
+const styles = StyleSheet.create({
+  container: { marginHorizontal: 16, marginBottom: 22, height: 54, borderRadius: 17, borderWidth: 1, paddingLeft: 14, paddingRight: 5, flexDirection: "row", alignItems: "center" },
+  input: { flex: 1, height: "100%", fontSize: 14 }, button: { height: 42, borderRadius: 13, paddingHorizontal: 15, alignItems: "center", justifyContent: "center" }, buttonText: { color: "#fff", fontWeight: "800" },
+});

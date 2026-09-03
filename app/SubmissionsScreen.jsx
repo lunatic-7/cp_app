@@ -1,245 +1,86 @@
-// SubmissionsScreen.jsx
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, Linking, ActivityIndicator, TouchableOpacity, Image } from 'react-native';
-import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
-import axios from 'axios';
-import DropDownPicker from 'react-native-dropdown-picker';
-import icons from '../constants/icons';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import axios from "axios";
+import ThemeToggle from "../components/ThemeToggle";
+import { useTheme } from "../contexts/ThemeContext";
 
-const SubmissionsScreen = () => {
-    const [submissions, setSubmissions] = useState(null);
-    const [open, setOpen] = useState(false);
-    const [value, setValue] = useState('today');
-    const [items, setItems] = useState([
-        { label: 'Today', value: 'today' },
-        { label: 'Yesterday', value: 'yesterday' },
-        { label: 'Yesterday - 1', value: 'dayBeforeYesterday1' },
-        { label: 'Yesterday - 2', value: 'dayBeforeYesterday2' },
-        { label: 'Yesterday - 3', value: 'dayBeforeYesterday3' },
-        { label: 'Yesterday - 4', value: 'dayBeforeYesterday4' },
-        { label: 'Yesterday - 5', value: 'dayBeforeYesterday5' },
-    ]);
+const DAYS = Array.from({ length: 7 }, (_, index) => ({ offset: index, label: index === 0 ? "Today" : index === 1 ? "Yesterday" : new Date(Date.now() - index * 864e5).toLocaleDateString(undefined, { weekday: "short" }) }));
 
-    const params = useLocalSearchParams();
-    const { handle } = params;
-    const router = useRouter();
+export default function SubmissionsScreen() {
+  const { handle: rawHandle } = useLocalSearchParams();
+  const handle = Array.isArray(rawHandle) ? rawHandle[0] : rawHandle || "wasif1607";
+  const router = useRouter();
+  const { colors } = useTheme();
+  const [submissions, setSubmissions] = useState([]);
+  const [day, setDay] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
+  const fetchSubmissions = useCallback(async (refresh = false) => {
+    refresh ? setRefreshing(true) : setLoading(true); setError(null);
+    try {
+      const response = await axios.get(`https://codeforces.com/api/user.status?handle=${encodeURIComponent(handle)}&from=1&count=350`);
+      if (response.data.status !== "OK") throw new Error("Codeforces rejected the request");
+      setSubmissions(response.data.result);
+    } catch { setError("Couldn’t load submissions. Check your connection and try again."); }
+    finally { setLoading(false); setRefreshing(false); }
+  }, [handle]);
 
-    useEffect(() => {
-        const fetchSubmissions = async () => {
-            try {
-                const response = await axios.get(
-                    `https://codeforces.com/api/user.status?handle=${handle}&from=1&count=350`
-                );
+  useEffect(() => { fetchSubmissions(); }, [fetchSubmissions]);
+  const filtered = useMemo(() => submissions.filter((item) => sameLocalDay(item.creationTimeSeconds * 1000, Date.now() - day * 864e5)), [submissions, day]);
+  const stats = useMemo(() => filtered.reduce((result, item) => { result[item.verdict] = (result[item.verdict] || 0) + 1; return result; }, {}), [filtered]);
 
-                if (response.data.status === 'OK') {
-                    setSubmissions(response.data.result);
-                } else {
-                    console.error('Failed to fetch submissions');
-                }
-            } catch (error) {
-                console.error('Error fetching submissions', error);
-            }
-        };
+  const header = <>
+    <View style={styles.heroRow}>
+      <View><Text style={[styles.eyebrow, { color: colors.primary }]}>@{handle}</Text><Text style={[styles.pageTitle, { color: colors.text }]}>Daily submissions</Text></View>
+      <Pressable onPress={() => router.push({ pathname: "/Analytics", params: { sub_handle: handle } })} style={[styles.analytics, { backgroundColor: colors.primarySoft }]}><Text style={{ color: colors.primary, fontWeight: "850" }}>Analytics →</Text></Pressable>
+    </View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.days}>
+      {DAYS.map((item) => <Pressable key={item.offset} onPress={() => setDay(item.offset)} style={[styles.day, { backgroundColor: day === item.offset ? colors.primary : colors.surface, borderColor: day === item.offset ? colors.primary : colors.border }]}><Text style={{ color: day === item.offset ? "#fff" : colors.muted, fontWeight: "750" }}>{item.label}</Text></Pressable>)}
+    </ScrollView>
+    <View style={styles.stats}>
+      <Stat label="Total" value={filtered.length} color={colors.text} colors={colors} />
+      <Stat label="Accepted" value={stats.OK || 0} color={colors.success} colors={colors} />
+      <Stat label="Wrong" value={stats.WRONG_ANSWER || 0} color={colors.danger} colors={colors} />
+      <Stat label="TLE" value={stats.TIME_LIMIT_EXCEEDED || 0} color="#d97706" colors={colors} />
+    </View>
+  </>;
 
-        fetchSubmissions();
-    }, [handle]);
+  return (
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <View style={[styles.nav, { borderBottomColor: colors.border }]}><Pressable onPress={() => router.back()} style={[styles.back, { backgroundColor: colors.surfaceAlt }]}><Text style={[styles.backText, { color: colors.text }]}>‹</Text></Pressable><Text style={[styles.navTitle, { color: colors.text }]}>Submissions</Text><ThemeToggle /></View>
+      {loading ? <ActivityIndicator size="large" color={colors.primary} style={styles.center} /> : error ? <ErrorState message={error} onRetry={() => fetchSubmissions()} colors={colors} /> :
+      <FlatList data={filtered} keyExtractor={(item) => String(item.id)} ListHeaderComponent={header} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchSubmissions(true)} colors={[colors.primary]} tintColor={colors.primary} />}
+        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyIcon}>✓</Text><Text style={[styles.emptyTitle, { color: colors.text }]}>A quiet day so far</Text><Text style={[styles.emptyText, { color: colors.muted }]}>No submissions found for this date. Pick another day or start solving.</Text></View>}
+        renderItem={({ item }) => <SubmissionCard item={item} colors={colors} />}
+      />}
+    </SafeAreaView>
+  );
+}
 
-    const getProblemLink = (contestId, index) => {
-        return `https://codeforces.com/problemset/problem/${contestId}/${index}`;
-    };
+function SubmissionCard({ item, colors }) {
+  const accepted = item.verdict === "OK"; const verdictColor = accepted ? colors.success : item.verdict === "WRONG_ANSWER" ? colors.danger : "#d97706";
+  const link = `https://codeforces.com/problemset/problem/${item.problem.contestId}/${item.problem.index}`;
+  return <Pressable onPress={() => Linking.openURL(link)} style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}>
+    <View style={styles.cardTop}><View style={{ flex: 1 }}><Text numberOfLines={2} style={[styles.problem, { color: colors.text }]}>{item.problem.name}</Text><Text style={[styles.problemId, { color: colors.primary }]}>#{item.problem.contestId}{item.problem.index} ↗</Text></View><View style={[styles.verdict, { backgroundColor: `${verdictColor}18` }]}><Text style={{ color: verdictColor, fontSize: 11, fontWeight: "850" }}>{formatVerdict(item.verdict)}</Text></View></View>
+    <Text style={[styles.meta, { color: colors.muted }]}>Rating {item.problem.rating || "—"} · {relativeTime(item.creationTimeSeconds)}</Text>
+    {!!item.problem.tags?.length && <View style={styles.tags}>{item.problem.tags.slice(0, 4).map((tag) => <View key={tag} style={[styles.tag, { backgroundColor: colors.surfaceAlt }]}><Text style={{ color: colors.muted, fontSize: 10 }}>{tag}</Text></View>)}</View>}
+  </Pressable>;
+}
+function Stat({ label, value, color, colors }) { return <View style={[styles.stat, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={{ color, fontSize: 20, fontWeight: "850" }}>{value}</Text><Text style={{ color: colors.muted, fontSize: 10 }}>{label}</Text></View>; }
+function ErrorState({ message, onRetry, colors }) { return <View style={styles.center}><Text style={styles.errorIcon}>!</Text><Text style={[styles.emptyTitle, { color: colors.text }]}>Something went wrong</Text><Text style={[styles.emptyText, { color: colors.muted }]}>{message}</Text><Pressable onPress={onRetry} style={[styles.retry, { backgroundColor: colors.primary }]}><Text style={{ color: "#fff", fontWeight: "800" }}>Try again</Text></Pressable></View>; }
+function sameLocalDay(a, b) { return new Date(a).toDateString() === new Date(b).toDateString(); }
+function formatVerdict(value = "TESTING") { return value === "OK" ? "ACCEPTED" : value.replaceAll("_", " "); }
+function relativeTime(seconds) { const mins = Math.floor((Date.now() / 1000 - seconds) / 60); if (mins < 1) return "just now"; if (mins < 60) return `${mins}m ago`; const hours = Math.floor(mins / 60); return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`; }
 
-    const getFilteredSubmissions = () => {
-        const today = new Date().toLocaleDateString();
-        const yesterday = new Date(Date.now() - 864e5).toLocaleDateString();
-        const dayBeforeYesterday1 = new Date(Date.now() - 2 * 864e5).toLocaleDateString();
-        const dayBeforeYesterday2 = new Date(Date.now() - 3 * 864e5).toLocaleDateString();
-        const dayBeforeYesterday3 = new Date(Date.now() - 4 * 864e5).toLocaleDateString();
-        const dayBeforeYesterday4 = new Date(Date.now() - 5 * 864e5).toLocaleDateString();
-        const dayBeforeYesterday5 = new Date(Date.now() - 6 * 864e5).toLocaleDateString();
-
-        switch (value) {
-            case 'today':
-                return submissions.filter((submission) => new Date(submission.creationTimeSeconds * 1000).toLocaleDateString() === today);
-            case 'yesterday':
-                return submissions.filter((submission) => new Date(submission.creationTimeSeconds * 1000).toLocaleDateString() === yesterday);
-            case 'dayBeforeYesterday1':
-                return submissions.filter((submission) => new Date(submission.creationTimeSeconds * 1000).toLocaleDateString() === dayBeforeYesterday1);
-            case 'dayBeforeYesterday2':
-                return submissions.filter((submission) => new Date(submission.creationTimeSeconds * 1000).toLocaleDateString() === dayBeforeYesterday2);
-            case 'dayBeforeYesterday3':
-                return submissions.filter((submission) => new Date(submission.creationTimeSeconds * 1000).toLocaleDateString() === dayBeforeYesterday3);
-            case 'dayBeforeYesterday4':
-                return submissions.filter((submission) => new Date(submission.creationTimeSeconds * 1000).toLocaleDateString() === dayBeforeYesterday4);
-            case 'dayBeforeYesterday5':
-                return submissions.filter((submission) => new Date(submission.creationTimeSeconds * 1000).toLocaleDateString() === dayBeforeYesterday5);
-            default:
-                return [];
-        }
-    };
-
-    const countVerdicts = () => {
-        const todaySubmissions = getFilteredSubmissions();
-        const verdictCounts = {
-            OK: 0,
-            TIME_LIMIT_EXCEEDED: 0,
-            WRONG_ANSWER: 0,
-        };
-
-        todaySubmissions.forEach((submission) => {
-            verdictCounts[submission.verdict] += 1;
-        });
-
-        return verdictCounts;
-    };
-
-    const getVerdictColor = (verdict) => {
-        switch (verdict) {
-            case 'OK':
-                return 'text-green-700';
-            case 'WRONG_ANSWER':
-                return 'text-red-600';
-            case 'TIME_LIMIT_EXCEEDED':
-                return 'text-orange-500';
-            default:
-                return 'black'; // You can set a default color
-        }
-    };
-
-    const getVerdictBgColor = (verdict) => {
-        switch (verdict) {
-            case 'OK':
-                return 'bg-green-100';
-            case 'WRONG_ANSWER':
-                return 'bg-red-100';
-            case 'TIME_LIMIT_EXCEEDED':
-                return 'bg-orange-100';
-            default:
-                return 'bg-white'; // You can set a default color
-        }
-    };
-
-    const formatTime = (timeSeconds) => {
-        const now = Math.floor(Date.now() / 1000);
-        const elapsedSeconds = now - timeSeconds;
-
-        if (elapsedSeconds < 60) {
-            // return 'online';
-            const secs = Math.floor(elapsedSeconds);
-            return `${secs} seconds ago`;
-        } else if (elapsedSeconds < 3600) {
-            const mins = Math.floor(elapsedSeconds / 60);
-            return `${mins} ${mins === 1 ? 'min' : 'mins'} ago`;
-        } else if (elapsedSeconds < 86400) {
-            const hours = Math.floor(elapsedSeconds / 3600);
-            return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
-        } else if (elapsedSeconds < 2592000) {
-            const days = Math.floor(elapsedSeconds / 86400);
-            return `${days} ${days === 1 ? 'day' : 'days'} ago`;
-        } else if (elapsedSeconds < 31536000) {
-            const months = Math.floor(elapsedSeconds / 2592000);
-            return `${months} ${months === 1 ? 'month' : 'months'} ago`;
-        } else {
-            const years = Math.floor(elapsedSeconds / 31536000);
-            return `${years} ${years === 1 ? 'year' : 'years'} ago`;
-        }
-    };
-
-    return (
-        <View className="flex-1 p-4">
-            <Stack.Screen
-                options={{
-                    headerStyle: { backgroundColor: "#E5F2F0" },
-                    headerShadowVisible: false,
-                    headerLeft: () => (
-                        <Text className="font-semibold pt-2 text-xl text-gray-700">Submissions ✍🏻</Text>
-                    ),
-                    // headerRight: () => (
-                    //     // <ScreenHeaderBtn iconUrl={icons.cf_icon} />
-                    // ),
-                    headerTitle: "",
-                }}
-            />
-            {submissions ? (
-                <View>
-                    <View className="flex flex-row justify-between items-center m-2">
-                        <TouchableOpacity onPress={() => router.push({ pathname: "Analytics", params: { sub_handle: handle } })}>
-                            <Text className="text-cyan-500 font-semibold py-2 text-lg">Analytics 🧐</Text>
-                        </TouchableOpacity>
-                        <DropDownPicker
-                            open={open}
-                            value={value}
-                            items={items}
-                            setOpen={setOpen}
-                            setValue={setValue}
-                            setItems={setItems}
-                            placeholder={'Today'}
-                            className="w-32 my-3 ml-16 self-center bg-gray-100"
-                        />
-                    </View>
-                    <View className="flex flex-row justify-between items-center p-2">
-                        <Text>Submissions: <Text className="text-lg">{getFilteredSubmissions().length}</Text></Text>
-                        <Text className={` ${getVerdictColor("OK")}`}>AC: <Text className="text-lg">{countVerdicts().OK}</Text></Text>
-                        <Text className={` ${getVerdictColor("TIME_LIMIT_EXCEEDED")}`}>TLE: <Text className="text-lg">{countVerdicts().TIME_LIMIT_EXCEEDED}</Text></Text>
-                        <Text className={` ${getVerdictColor("WRONG_ANSWER")}`}>WA: <Text className="text-lg">{countVerdicts().WRONG_ANSWER}</Text></Text>
-                    </View>
-                    {getFilteredSubmissions().length === 0 ? (
-                        <View>
-                            <Text className="text-center text-gray-500 mt-4 p-5">No submissions found for the selected time range</Text>
-                            <Image source={icons.do_it} resizeMode='contain' className="self-center"/> 
-                            <Text className="text-center text-gray-500 mt-4 p-5">MKSBPON18NOV26 🎉</Text>
-                            <Text className="text-center text-gray-500 mt-4 p-5">You can also check your submissions for different time ranges using the dropdown above</Text> 
-                            <Text className="text-center text-gray-500 mt-4 p-5">Keep Coding! 🚀</Text>
-                            <Text className="text-center text-gray-500 mt-4 p-5">Made with 💙 by Codeforces User (Wasif1607)</Text>
-                        </View>
-                    ) : (
-                        <FlatList
-                            data={getFilteredSubmissions()}
-                            showsVerticalScrollIndicator={false}
-                            keyExtractor={(item) => item.id.toString()}
-                            className="mb-36"
-                            renderItem={({ item }) => (
-                                <View className={`${getVerdictBgColor(item.verdict)} mb-4 border border-gray-200 p-4 rounded-xl`}>
-                                    <View className="flex flex-row justify-between">
-                                        <View className="flex flex-row items-center gap-2">
-                                            <Text className="font-semibold text-md text-">{item.problem.name}</Text>
-                                            <Text
-                                                className="text-blue-500 underline mt-2"
-                                                onPress={() => Linking.openURL(getProblemLink(item.problem.contestId, item.problem.index))}
-                                            >
-                                                {item.problem.contestId + item.problem.index}
-                                            </Text>
-                                        </View>
-                                        <Text className={` ${getVerdictColor(item.verdict)}`}>{item.verdict}</Text>
-                                    </View>
-                                    <Text className="text-gray-500">Rating: <Text className="text-gray-800 font-semibold">{item.problem.rating}</Text></Text>
-                                    <Text className="text-gray-500">When: <Text className="text-gray-700">{formatTime(item.creationTimeSeconds)}</Text></Text>
-                                    <View className="mt-2 flex-row items-center">
-                                        <Text className="mr-2 font-bold">Tags:</Text>
-                                        <FlatList
-                                            horizontal
-                                            showsHorizontalScrollIndicator={false}
-                                            data={item.problem.tags}
-                                            keyExtractor={(tag) => tag}
-                                            renderItem={({ item: tag }) => (
-                                                <View className="mr-2 p-1 border border-gray-300 rounded-lg">
-                                                    <Text>{tag}</Text>
-                                                </View>
-                                            )}
-                                        />
-                                    </View>
-                                    {/* Add more information as needed */}
-                                </View>
-                            )}
-                        />
-                    )}
-
-                </View>
-            ) : (
-                <ActivityIndicator className="flex-1 justify-center items-center" size="large" />
-            )}
-        </View>
-    );
-};
-
-export default SubmissionsScreen;
+const styles = StyleSheet.create({
+  safe: { flex: 1 }, nav: { minHeight: 62, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: StyleSheet.hairlineWidth }, back: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" }, backText: { fontSize: 35, lineHeight: 37 }, navTitle: { flex: 1, textAlign: "center", fontSize: 16, fontWeight: "800" },
+  content: { padding: 16, paddingBottom: 40, gap: 12 }, heroRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginVertical: 6 }, eyebrow: { fontSize: 11, fontWeight: "850", letterSpacing: 1 }, pageTitle: { fontSize: 26, fontWeight: "850", marginTop: 3 }, analytics: { paddingHorizontal: 13, paddingVertical: 11, borderRadius: 13 },
+  days: { gap: 8, paddingVertical: 14 }, day: { borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, paddingVertical: 9 }, stats: { flexDirection: "row", gap: 7, marginBottom: 4 }, stat: { flex: 1, minHeight: 64, borderWidth: 1, borderRadius: 15, alignItems: "center", justifyContent: "center", gap: 2 },
+  card: { borderWidth: 1, borderRadius: 19, padding: 15, gap: 9 }, cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 8 }, problem: { fontSize: 16, lineHeight: 21, fontWeight: "800" }, problemId: { fontSize: 11, fontWeight: "750", marginTop: 4 }, verdict: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, maxWidth: 105 }, meta: { fontSize: 12 }, tags: { flexDirection: "row", flexWrap: "wrap", gap: 6 }, tag: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
+  center: { flex: 1, padding: 30, alignItems: "center", justifyContent: "center" }, empty: { alignItems: "center", paddingVertical: 55, paddingHorizontal: 20 }, emptyIcon: { color: "#fff", backgroundColor: "#287D75", width: 48, height: 48, borderRadius: 16, textAlign: "center", textAlignVertical: "center", fontSize: 25, overflow: "hidden" }, errorIcon: { color: "#fff", backgroundColor: "#dc2626", width: 48, height: 48, borderRadius: 16, textAlign: "center", textAlignVertical: "center", fontSize: 28, fontWeight: "800", overflow: "hidden" }, emptyTitle: { fontSize: 19, fontWeight: "850", marginTop: 14 }, emptyText: { fontSize: 13, lineHeight: 19, textAlign: "center", marginTop: 7 }, retry: { borderRadius: 13, paddingHorizontal: 20, paddingVertical: 12, marginTop: 16 },
+});
